@@ -399,7 +399,7 @@ DecisionHub was developed collaboratively as a team project.
 
 | Team Member | GitHub |
 |---|---|
-| J Keerthana| [@keerthana12hv](https://github.com/keerthana12hv) |
+| J Keerthana | [@keerthana12hv](https://github.com/keerthana12hv) |
 | Chirag B K | [@ChiragBK1012](https://github.com/ChiragBK1012) |
 | Jyothi | [@jyotihanagandj00-sketch](https://github.com/jyotihanagandj00-sketch) |
 | Kaviyaruba | [@Kaviyaruba110](https://github.com/Kaviyaruba110) |

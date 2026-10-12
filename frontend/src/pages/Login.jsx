@@ -1,79 +1,156 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/Toast";
-import { FaGoogle, FaUserShield, FaUser, FaLock, FaEnvelope, FaEye, FaEyeSlash } from "react-icons/fa";
+import {
+  FaGoogle,
+  FaUserShield,
+  FaUser,
+  FaLock,
+  FaEnvelope,
+  FaEye,
+  FaEyeSlash,
+} from "react-icons/fa";
 import "../styles/Login.css";
 import api from "../services/api";
 
 function Login() {
   const navigate = useNavigate();
-  //const { login } = useAuth();
-  const { setUser } = useAuth();
+  const { login, setUser } = useAuth();
   const { addToast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("USER"); // Default role
+  const [role, setRole] = useState("USER"); // Default role: USER or ADMIN
   const [rememberMe, setRememberMe] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
- const handleLogin = async (e) => {
-   e.preventDefault();
+  // Restore remembered email on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("decisionhub_remember_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
-   if (!email || !password) {
-     addToast("Please fill in all fields.", "error");
-     return;
-   }
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
-   try {
-     // Login
+    if (!email || !password) {
+      addToast("Please fill in all fields.", "error");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Post to Login Endpoint
       const response = await api.post("/auth/login", {
-        email,
+        email: email.trim(),
         password,
         role,
       });
 
-     const token = response.data.token;
+      const token = response.data?.token;
 
-     localStorage.setItem("token", token);
+      if (!token) {
+        throw new Error("No authentication token received from server");
+      }
 
-     // Get logged-in user profile
-     const profileResponse = await api.get("/auth/profile");
+      // Store JWT token
+      localStorage.setItem("token", token);
 
-     const user = profileResponse.data;
+      if (rememberMe) {
+        localStorage.setItem("decisionhub_remember_email", email.trim());
+      } else {
+        localStorage.removeItem("decisionhub_remember_email");
+      }
 
-     localStorage.setItem(
-       "decisionhub-session",
-       JSON.stringify(user)
-     );
+      // 2. Fetch logged-in user profile
+      let user;
+      try {
+        const profileResponse = await api.get("/auth/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        user = profileResponse.data;
+      } catch (profileError) {
+        console.warn("Could not fetch profile endpoint, falling back to JWT claims:", profileError);
+        // Fallback: parse token payload
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          user = {
+            id: payload.id,
+            email: payload.sub,
+            username: payload.sub?.split("@")[0] || "User",
+            role: payload.role || role,
+            status: "ACTIVE",
+          };
+        } catch {
+          user = { email: email.trim(), role, status: "ACTIVE" };
+        }
+      }
 
-     setUser(user);
+      // 3. Save session in AuthContext & localStorage
+      if (typeof login === "function") {
+        login(token, user);
+      } else if (typeof setUser === "function") {
+        localStorage.setItem("decisionhub-session", JSON.stringify(user));
+        setUser(user);
+      }
 
-     addToast("Login Successful!", "success");
+      addToast("Login Successful!", "success");
 
-     navigate("/dashboard");
+      // 4. Redirect to dashboard
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Login attempt failed:", error);
+      const errorMessage =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        (error.message === "Network Error"
+          ? "Unable to reach server. Please ensure the backend is running at http://localhost:8080."
+          : error.message || "Invalid email or password");
 
-   } catch (error) {
-     addToast(
-       error.response?.data?.error ||
-       error.response?.data?.message ||
-       "Invalid email or password",
-       "error"
-     );
-   }
- };
-  const handleForgotPassword = (e) => {
+      addToast(errorMessage, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
     e.preventDefault();
     if (!forgotEmail) {
       addToast("Please enter your email.", "error");
       return;
     }
-    addToast(`Password reset link sent to ${forgotEmail}`, "info");
-    setShowForgot(false);
-    setForgotEmail("");
+
+    setForgotLoading(true);
+    try {
+      const res = await api.post("/auth/forgot-password", {
+        email: forgotEmail.trim(),
+      });
+
+      addToast(
+        res.data?.message || `Password reset link sent to ${forgotEmail}`,
+        "success"
+      );
+      setShowForgot(false);
+      setForgotEmail("");
+    } catch (error) {
+      console.error("Forgot password request failed:", error);
+      const errMsg =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        "Failed to send reset link. Please check your email.";
+      addToast(errMsg, "error");
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   return (
@@ -115,6 +192,7 @@ function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={loading}
             />
           </div>
 
@@ -126,6 +204,7 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={loading}
             />
             <button
               type="button"
@@ -143,6 +222,7 @@ function Login() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={loading}
               />
               <span className="checkmark"></span>
               Remember Me
@@ -151,13 +231,18 @@ function Login() {
               type="button"
               className="forgot-link"
               onClick={() => setShowForgot(true)}
+              disabled={loading}
             >
               Forgot Password?
             </button>
           </div>
 
-          <button type="submit" className="btn-primary login-btn">
-            Login as {role === "ADMIN" ? "Admin" : "User"}
+          <button
+            type="submit"
+            className="btn-primary login-btn"
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : `Login as ${role === "ADMIN" ? "Admin" : "User"}`}
           </button>
         </form>
 
@@ -168,7 +253,9 @@ function Login() {
         <button
           type="button"
           className="btn-secondary google-btn"
-          onClick={() => addToast("Google authentication is UI-only in mock mode.", "info")}
+          onClick={() =>
+            addToast("Google authentication is UI-only in mock mode.", "info")
+          }
         >
           <FaGoogle /> Google Login
         </button>
@@ -193,6 +280,7 @@ function Login() {
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                   required
+                  disabled={forgotLoading}
                 />
               </div>
               <div className="modal-actions">
@@ -200,11 +288,16 @@ function Login() {
                   type="button"
                   className="btn-secondary"
                   onClick={() => setShowForgot(false)}
+                  disabled={forgotLoading}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Send Link
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={forgotLoading}
+                >
+                  {forgotLoading ? "Sending..." : "Send Link"}
                 </button>
               </div>
             </form>

@@ -17,6 +17,8 @@ function Register() {
   const [role, setRole] = useState("USER"); // Option to select Admin/User on register
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [loading, setLoading] = useState(false);
+
 const handleRegister = async (e) => {
   e.preventDefault();
 
@@ -35,24 +37,31 @@ const handleRegister = async (e) => {
     return;
   }
 
+  setLoading(true);
+
   try {
     await api.post("/auth/register", {
-      username,
-      email,
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
       password,
     });
 
-    addToast("Account created successfully!", "success");
+    addToast("Account created successfully! Please login.", "success");
 
     navigate("/login");
 
   } catch (error) {
+    console.error("Registration failed:", error);
     addToast(
       error.response?.data?.error ||
       error.response?.data?.message ||
-      "Registration failed.",
+      (error.message === "Network Error"
+        ? "Unable to reach server. Please ensure the backend is running."
+        : error.message || "Registration failed."),
       "error"
     );
+  } finally {
+    setLoading(false);
   }
 };
 
@@ -131,8 +140,8 @@ const handleRegister = async (e) => {
             />
           </div>
 
-          <button type="submit" className="btn-primary login-btn">
-            Register as {role === "ADMIN" ? "Admin" : "User"}
+          <button type="submit" className="btn-primary login-btn" disabled={loading}>
+            {loading ? "Registering..." : `Register as ${role === "ADMIN" ? "Admin" : "User"}`}
           </button>
         </form>
 

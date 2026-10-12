@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "../services/api";
-const AuthContext = createContext();
 
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -11,7 +11,12 @@ export const AuthProvider = ({ children }) => {
     const storedUser = localStorage.getItem("decisionhub-session");
 
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error("Failed to parse stored session:", err);
+        localStorage.removeItem("decisionhub-session");
+      }
     }
 
     const activeTheme = localStorage.getItem("decisionhub-theme") || "dark";
@@ -20,12 +25,26 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const login = (token, userData) => {
+    if (token) {
+      localStorage.setItem("token", token);
+    }
+    if (userData) {
+      localStorage.setItem("decisionhub-session", JSON.stringify(userData));
+      setUser(userData);
+    }
+  };
+
   const refreshProfile = async () => {
     try {
-      const t = localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("jwt");
+      const t =
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("jwt");
+
       if (t) {
         const res = await api.get("/auth/profile", {
-          headers: { Authorization: `Bearer ${t}` }
+          headers: { Authorization: `Bearer ${t}` },
         });
 
         if (res.status === 200) {
@@ -42,16 +61,18 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("jwt");
     localStorage.removeItem("decisionhub-session");
     setUser(null);
   };
-
 
   return (
     <AuthContext.Provider
       value={{
         user,
         setUser,
+        login,
         logout,
         refreshProfile,
         loading,

@@ -30,6 +30,13 @@ import com.decisionhub.dto.response.authentication.UserResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.security.Principal;
+import com.decisionhub.enums.reports.ReportType;
+import com.decisionhub.service.interfaces.report.ReportExportService;
+import com.decisionhub.service.reports.dto.ExportResult;
+import com.decisionhub.exception.BadRequestException;
 
 @RestController
 @RequestMapping("/api/analytics")
@@ -37,6 +44,7 @@ import org.springframework.data.domain.Pageable;
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+    private final ReportExportService reportExportService;
 
     @GetMapping("/overview")
     public ResponseEntity<UserPlatformOverviewResponse> getUserOverview() {
@@ -230,10 +238,89 @@ getAdminFeedbackAnalytics() {
     );
 }
 
-//@GetMapping("/admin/users-list")
-//public ResponseEntity<List<com.decisionhub.dto.response.authentication.UserResponse>> getAdminUsersList() {
-//    return ResponseEntity.ok(
-//            analyticsService.getAdminUsersList()
-//    );
-//}
-}
+    @GetMapping("/decisions/{decisionId}/export")
+    public ResponseEntity<byte[]> exportDecisionAnalytics(
+            @PathVariable Long decisionId,
+            @RequestParam(defaultValue = "PDF") String format,
+            Principal principal) {
+        ReportType reportType = parseReportType(format);
+        String username = principal != null ? principal.getName() : null;
+        ExportResult result = reportExportService.exportDecisionAnalytics(decisionId, reportType, username);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(result.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFilename() + "\"")
+                .body(result.getData());
+    }
+
+    @GetMapping("/communities/{communityId}/export")
+    public ResponseEntity<byte[]> exportCommunityAnalytics(
+            @PathVariable Long communityId,
+            @RequestParam(defaultValue = "PDF") String format,
+            Principal principal) {
+        ReportType reportType = parseReportType(format);
+        String username = principal != null ? principal.getName() : null;
+        ExportResult result = reportExportService.exportCommunityAnalytics(communityId, reportType, username);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(result.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFilename() + "\"")
+                .body(result.getData());
+    }
+
+    @GetMapping("/admin/export")
+    public ResponseEntity<byte[]> exportAdminAnalytics(
+            @RequestParam(defaultValue = "PDF") String format,
+            Principal principal) {
+        ReportType reportType = parseReportType(format);
+        String username = principal != null ? principal.getName() : null;
+        ExportResult result = reportExportService.exportAdminAnalytics(reportType, username);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(result.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFilename() + "\"")
+                .body(result.getData());
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportAnalytics(
+            @RequestParam(defaultValue = "DECISION") String type,
+            @RequestParam(required = false) Long id,
+            @RequestParam(defaultValue = "PDF") String format,
+            Principal principal) {
+        ReportType reportType = parseReportType(format);
+        String username = principal != null ? principal.getName() : null;
+
+        ExportResult result;
+        if ("COMMUNITY".equalsIgnoreCase(type)) {
+            if (id == null) {
+                throw new BadRequestException("communityId (id) is required for community export");
+            }
+            result = reportExportService.exportCommunityAnalytics(id, reportType, username);
+        } else if ("ADMIN".equalsIgnoreCase(type) || "PLATFORM".equalsIgnoreCase(type)) {
+            result = reportExportService.exportAdminAnalytics(reportType, username);
+        } else {
+            if (id == null) {
+                throw new BadRequestException("decisionId (id) is required for decision export");
+            }
+            result = reportExportService.exportDecisionAnalytics(id, reportType, username);
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(result.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFilename() + "\"")
+                .body(result.getData());
+    }
+
+    private ReportType parseReportType(String format) {
+        if (format == null) return ReportType.PDF;
+        String upper = format.trim().toUpperCase();
+        if (upper.equals("EXCEL") || upper.equals("XLS") || upper.equals("XLSX")) {
+            return ReportType.EXCEL;
+        } else if (upper.equals("CSV")) {
+            return ReportType.CSV;
+        } else {
+            return ReportType.PDF;
+        }
+    }
+}

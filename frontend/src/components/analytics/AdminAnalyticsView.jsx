@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { analyticsService } from "../../services/analyticsService";
+import { analyticsService, exportAdminAnalytics } from "../../services/analyticsService";
 import {
   FaUsers,
   FaBuilding,
@@ -44,25 +44,30 @@ export function AdminAnalyticsView() {
     }
   };
 
-  const exportData = (format) => {
-    const { dashboard, users, communities, decisions, discussion } = data || {};
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Metric,Value\n"
-      + `Total Users,${dashboard?.totalUsers ?? users?.totalUsers ?? 0}\n`
-      + `Total Communities,${dashboard?.totalCommunities ?? communities?.totalCommunities ?? 0}\n`
-      + `Total Decisions,${dashboard?.totalDecisions ?? decisions?.totalDecisions ?? 0}\n`
-      + `Total Votes,${dashboard?.totalVotes ?? 0}\n`
-      + `Total Comments,${dashboard?.totalComments ?? discussion?.totalComments ?? 0}\n`
-      + `Active Decisions,${decisions?.activeDecisions ?? 0}\n`
-      + `Closed Decisions,${decisions?.closedDecisions ?? 0}\n`;
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `platform_analytics_export.${format === "excel" ? "xls" : format === "pdf" ? "txt" : "csv"}`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportData = async (format) => {
+    try {
+      await exportAdminAnalytics(format);
+    } catch (err) {
+      console.warn("Backend export failed, falling back to client CSV export", err);
+      const { dashboard, users, communities, decisions, discussion } = data || {};
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + "Metric,Value\n"
+        + `Total Users,${dashboard?.totalUsers ?? users?.totalUsers ?? 0}\n`
+        + `Total Communities,${dashboard?.totalCommunities ?? communities?.totalCommunities ?? 0}\n`
+        + `Total Decisions,${dashboard?.totalDecisions ?? decisions?.totalDecisions ?? 0}\n`
+        + `Total Votes,${dashboard?.totalVotes ?? 0}\n`
+        + `Total Comments,${dashboard?.totalComments ?? discussion?.totalComments ?? 0}\n`
+        + `Active Decisions,${decisions?.activeDecisions ?? 0}\n`
+        + `Closed Decisions,${decisions?.closedDecisions ?? 0}\n`;
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `platform_analytics_export.${format === "excel" ? "xls" : format === "pdf" ? "txt" : "csv"}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const loadUsersList = async (page = 0) => {

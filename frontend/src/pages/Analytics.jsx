@@ -4,6 +4,11 @@ import Navbar from "../components/Navbar";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import { 
+  exportDecisionAnalytics, 
+  exportCommunityAnalytics, 
+  exportAdminAnalytics 
+} from "../services/analyticsService";
 import { FaFileDownload, FaChartBar, FaShieldAlt, FaVoteYea } from "react-icons/fa";
 import { DecisionAnalyticsView } from "../components/analytics/DecisionAnalyticsView";
 import { CommunityAnalyticsView } from "../components/analytics/CommunityAnalyticsView";
@@ -73,14 +78,39 @@ function Analytics() {
     }
     return tabName === "decision";
   };
-  const handleExport = (format) => {
+  const handleExport = async (format) => {
     setDownloading(format);
     addToast(`Preparing ${format} report download...`, "info");
     
-    setTimeout(() => {
+    try {
+      if (activeTab === "community") {
+        if (!communityId) {
+          addToast("Please select a community to export its analytics.", "warning");
+          setDownloading(null);
+          return;
+        }
+        await exportCommunityAnalytics(communityId, format);
+        addToast(`Community Analytics ${format} exported successfully!`, "success");
+      } else if (activeTab === "admin") {
+        await exportAdminAnalytics(format);
+        addToast(`Platform Admin Analytics ${format} exported successfully!`, "success");
+      } else {
+        // 'decision' tab
+        if (!decisionId) {
+          addToast("Please select a decision to export its analytics.", "warning");
+          setDownloading(null);
+          return;
+        }
+        await exportDecisionAnalytics(decisionId, format);
+        addToast(`Decision Analytics ${format} exported successfully!`, "success");
+      }
+    } catch (err) {
+      console.error("Export error:", err);
+      const msg = err.response?.data?.message || err.message || "Export failed";
+      addToast(`Failed to export ${format} report: ${msg}`, "error");
+    } finally {
       setDownloading(null);
-      addToast(`DecisionHub_Analytics_Report.${format.toLowerCase()} downloaded successfully!`, "success");
-    }, 2000);
+    }
   };
 
   return (

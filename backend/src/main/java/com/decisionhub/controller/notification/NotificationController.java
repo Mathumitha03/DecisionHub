@@ -55,4 +55,11 @@ public class NotificationController {
         notificationService.clearAllNotifications();
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/broadcast")
+    public ResponseEntity<Void> broadcastNotification(
+            @jakarta.validation.Valid @RequestBody com.decisionhub.dto.request.notification.BroadcastNotificationRequest request) {
+        notificationService.broadcastNotification(request.title(), request.message(), request.actionUrl());
+        return ResponseEntity.ok().build();
+    }
 }

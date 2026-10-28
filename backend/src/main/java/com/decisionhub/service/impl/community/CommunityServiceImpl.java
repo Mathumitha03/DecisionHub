@@ -49,6 +49,7 @@ public class CommunityServiceImpl implements CommunityService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
 
     public CommunityServiceImpl(
             CommunityRepository communityRepository,
@@ -56,12 +57,24 @@ public class CommunityServiceImpl implements CommunityService {
             CategoryRepository categoryRepository,
             UserRepository userRepository,
             ApplicationEventPublisher eventPublisher) {
+        this(communityRepository, communityMemberRepository, categoryRepository, userRepository, eventPublisher, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CommunityServiceImpl(
+            CommunityRepository communityRepository,
+            CommunityMemberRepository communityMemberRepository,
+            CategoryRepository categoryRepository,
+            UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService) {
 
         this.communityRepository = communityRepository;
         this.communityMemberRepository = communityMemberRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
+        this.blockedEmailService = blockedEmailService;
     }
 
 
@@ -81,6 +94,9 @@ public class CommunityServiceImpl implements CommunityService {
                         new ResourceNotFoundException("Category not found"));
 
         User owner = getCurrentUser();
+        if (blockedEmailService != null) {
+            blockedEmailService.validateNotBlocked(owner.getEmail());
+        }
 
         // If a user creates their first active community and their PlatformRole is USER, automatically update it to MODERATOR
         boolean hasActiveCommunity = communityRepository.findByOwner(owner)
@@ -226,6 +242,23 @@ public class CommunityServiceImpl implements CommunityService {
         boolean isAdmin = currentUser.getRole() == com.decisionhub.enums.authentication.PlatformRole.ADMIN;
         if (!isOwner && !isAdmin) {
             throw new UnauthorizedActionException("Only the community owner or a platform admin can delete this community");
+        }
+
+        // If an ADMIN deletes a community, identify the community owner and permanently block their email
+        if (isAdmin) {
+            User owner = community.getOwner();
+            if (owner != null && owner.getEmail() != null) {
+                if (blockedEmailService != null) {
+                    blockedEmailService.blockEmail(
+                            owner.getEmail(),
+                            "COMMUNITY_DELETED_BY_ADMIN: " + community.getName(),
+                            currentUser.getEmail()
+                    );
+                }
+                owner.setStatus(com.decisionhub.enums.authentication.UserStatus.SUSPENDED);
+                owner.setDeletedAt(LocalDateTime.now());
+                userRepository.save(owner);
+            }
         }
 
         community.setDeletedAt(LocalDateTime.now());

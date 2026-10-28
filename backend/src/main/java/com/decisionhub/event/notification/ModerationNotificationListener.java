@@ -10,11 +10,9 @@ import com.decisionhub.repository.discussion.CommentRepository;
 import com.decisionhub.service.interfaces.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor
@@ -25,8 +23,8 @@ public class ModerationNotificationListener {
     private final DecisionRepository decisionRepository;
     private final CommentRepository commentRepository;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleCommentRemoved(CommentRemovedEvent event) {
         log.info("Handling CommentRemovedEvent for comment ID: {}", event.getCommentId());
 
@@ -58,8 +56,8 @@ public class ModerationNotificationListener {
         );
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleDecisionLocked(DecisionLockedEvent event) {
         log.info("Handling DecisionLockedEvent for decision ID: {}", event.getDecisionId());
 
@@ -84,8 +82,8 @@ public class ModerationNotificationListener {
         );
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleDecisionUnlocked(DecisionUnlockedEvent event) {
         log.info("Handling DecisionUnlockedEvent for decision ID: {}", event.getDecisionId());
 
@@ -110,8 +108,8 @@ public class ModerationNotificationListener {
         );
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleDecisionPinned(DecisionPinnedEvent event) {
         log.info("Handling DecisionPinnedEvent for decision ID: {}", event.getDecisionId());
 
@@ -136,8 +134,8 @@ public class ModerationNotificationListener {
         );
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleDecisionUnpinned(DecisionUnpinnedEvent event) {
         log.info("Handling DecisionUnpinnedEvent for decision ID: {}", event.getDecisionId());
 

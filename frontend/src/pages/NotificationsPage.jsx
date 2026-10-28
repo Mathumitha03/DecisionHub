@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import LoadingState from "../components/LoadingState";
 import { useToast } from "../components/Toast";
 import { useNotifications } from "../context/NotificationsContext";
+import { useAuth } from "../context/AuthContext";
 import {
   FaBell,
   FaCheckDouble,
@@ -14,12 +15,19 @@ import {
   FaVoteYea,
   FaUsers,
   FaClock,
-  FaCog
+  FaCog,
+  FaBullhorn,
+  FaExclamationTriangle,
+  FaLock,
+  FaUnlock,
+  FaThumbtack,
+  FaTimes
 } from "react-icons/fa";
 import "../styles/NotificationsPage.css";
-import { getNotifications } from "../services/notificationService";
+import { getNotifications, broadcastNotification } from "../services/notificationService";
 
 function NotificationsPage() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [filter, setFilter] = useState("all"); // "all", "unread"
@@ -38,6 +46,13 @@ function NotificationsPage() {
   const [totalElements, setTotalElements] = useState(0);
   const [totalAllCount, setTotalAllCount] = useState(0);
   const [localLoading, setLocalLoading] = useState(false);
+
+  // Broadcast Announcement State for Admin
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastActionUrl, setBroadcastActionUrl] = useState("");
+  const [broadcasting, setBroadcasting] = useState(false);
 
   const fetchTotalAllCount = async () => {
     try {
@@ -154,20 +169,59 @@ function NotificationsPage() {
     }
   };
 
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      addToast("Title and message are required.", "warning");
+      return;
+    }
+    setBroadcasting(true);
+    try {
+      await broadcastNotification({
+        title: broadcastTitle.trim(),
+        message: broadcastMessage.trim(),
+        actionUrl: broadcastActionUrl.trim() || null
+      });
+      addToast("Broadcast announcement sent successfully to all users!", "success");
+      setShowBroadcastModal(false);
+      setBroadcastTitle("");
+      setBroadcastMessage("");
+      setBroadcastActionUrl("");
+      loadNotifications(0, filter === "unread", false);
+      fetchTotalAllCount();
+    } catch (err) {
+      console.error(err);
+      addToast(err?.response?.data?.message || "Failed to send broadcast announcement.", "error");
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case "COMMENT":
         return <FaComment />;
+      case "COMMENT_REMOVED":
+        return <FaTrash style={{ color: "var(--danger, #ef4444)" }} />;
       case "VOTE":
         return <FaVoteYea />;
       case "COMMUNITY":
         return <FaUsers />;
       case "DECISION":
         return <FaBell />;
+      case "DECISION_LOCKED":
+        return <FaLock style={{ color: "var(--warning, #eab308)" }} />;
+      case "DECISION_UNLOCKED":
+        return <FaUnlock style={{ color: "var(--accent-blue)" }} />;
+      case "DECISION_PINNED":
+      case "DECISION_UNPINNED":
+        return <FaThumbtack style={{ color: "var(--accent-purple)" }} />;
+      case "REPORT":
+        return <FaExclamationTriangle style={{ color: "var(--danger, #ef4444)" }} />;
       case "REMINDER":
         return <FaClock />;
       case "SYSTEM":
-        return <FaCog />;
+        return <FaBullhorn style={{ color: "var(--accent-purple)" }} />;
       default:
         return <FaBell />;
     }
@@ -203,6 +257,15 @@ function NotificationsPage() {
             </div>
 
             <div className="notifications-page-actions">
+              {user?.role === "ADMIN" && (
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowBroadcastModal(true)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                >
+                  <FaBullhorn /> Broadcast Announcement
+                </button>
+              )}
               {unreadCount > 0 && (
                 <button className="btn-secondary" onClick={handleMarkAllRead}>
                   <FaCheckDouble /> Mark All Read
@@ -312,6 +375,75 @@ function NotificationsPage() {
           </div>
         </div>
       </div>
+
+      {/* Broadcast Announcement Modal for Admin */}
+      {showBroadcastModal && (
+        <div className="broadcast-modal-overlay" onClick={() => setShowBroadcastModal(false)}>
+          <div className="broadcast-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="broadcast-modal-header">
+              <h2><FaBullhorn /> Broadcast Announcement</h2>
+              <button
+                className="broadcast-modal-close"
+                onClick={() => setShowBroadcastModal(false)}
+                title="Close"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <form onSubmit={handleSendBroadcast}>
+              <div className="broadcast-form-group">
+                <label>Announcement Title *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Platform Notice / Maintenance"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  required
+                  maxLength={100}
+                />
+              </div>
+              <div className="broadcast-form-group">
+                <label>Message *</label>
+                <textarea
+                  rows="4"
+                  placeholder="Enter the notification message to broadcast to all active users..."
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  required
+                  maxLength={500}
+                />
+              </div>
+              <div className="broadcast-form-group">
+                <label>Action URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. /decisions or /governance"
+                  value={broadcastActionUrl}
+                  onChange={(e) => setBroadcastActionUrl(e.target.value)}
+                />
+              </div>
+              <div className="broadcast-modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowBroadcastModal(false)}
+                  disabled={broadcasting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={broadcasting}
+                  style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                >
+                  <FaBullhorn /> {broadcasting ? "Broadcasting..." : "Send Announcement"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

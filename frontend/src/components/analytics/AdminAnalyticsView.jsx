@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { analyticsService, exportAdminAnalytics } from "../../services/analyticsService";
+import { useToast } from "../Toast";
+import api from "../../services/api";
 import {
   FaUsers,
   FaBuilding,
@@ -15,6 +17,7 @@ import {
 
 export function AdminAnalyticsView() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,6 +33,25 @@ export function AdminAnalyticsView() {
   });
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState(null);
+  const [userToRemove, setUserToRemove] = useState(null);
+  const [userActionLoading, setUserActionLoading] = useState(false);
+
+  const handleRemoveUser = async () => {
+    if (!userToRemove) return;
+    try {
+      setUserActionLoading(true);
+      await api.delete(`/users/${userToRemove.id}`);
+      addToast(`User ${userToRemove.username} removed and email permanently blocked`, "success");
+      setUserToRemove(null);
+      await loadUsersList(usersPage.number);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to remove user:", err);
+      addToast(err.response?.data?.error || err.response?.data?.message || "Failed to remove user", "error");
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -351,6 +373,7 @@ export function AdminAnalyticsView() {
                     <th style={{ padding: "10px 5px", color: "#94a3b8", fontSize: "13px" }}>Email</th>
                     <th style={{ padding: "10px 5px", color: "#94a3b8", fontSize: "13px" }}>Role</th>
                     <th style={{ padding: "10px 5px", color: "#94a3b8", fontSize: "13px" }}>Status</th>
+                    <th style={{ padding: "10px 5px", color: "#94a3b8", fontSize: "13px", textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -369,8 +392,34 @@ export function AdminAnalyticsView() {
                           {u.role}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 5px", fontSize: "12px", color: "#10b981", fontWeight: "bold" }}>
+                      <td style={{ padding: "12px 5px", fontSize: "12px", color: u.status === "ACTIVE" ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
                         {u.status}
+                      </td>
+                      <td style={{ padding: "12px 5px", textAlign: "right" }}>
+                        {u.role !== "ADMIN" && u.status !== "SUSPENDED" && (
+                          <button
+                            type="button"
+                            onClick={() => setUserToRemove(u)}
+                            disabled={userActionLoading}
+                            style={{
+                              background: "rgba(239, 68, 68, 0.15)",
+                              color: "#F87171",
+                              border: "1px solid rgba(239, 68, 68, 0.4)",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "600"
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                        {u.status === "SUSPENDED" && (
+                          <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "bold" }}>
+                            Blocked
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -412,6 +461,60 @@ export function AdminAnalyticsView() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Remove User Confirmation Modal */}
+      {userToRemove && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.85)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1100
+        }}>
+          <div className="glass-card animate-scale-in" style={{
+            width: "90%",
+            maxWidth: "420px",
+            padding: "25px",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem"
+          }}>
+            <h3 style={{ margin: 0, color: "#fff", fontSize: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "#ef4444" }}>⚠️</span> Remove User & Block Email
+            </h3>
+            <p style={{ color: "#cbd5e1", fontSize: "14px", lineHeight: "1.5", margin: 0 }}>
+              Are you sure you want to permanently remove <strong>{userToRemove.username}</strong>? Their registered email (<strong>{userToRemove.email}</strong>) will be permanently blocked from the platform.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={userActionLoading}
+                onClick={() => setUserToRemove(null)}
+                style={{ padding: "6px 14px", fontSize: "13px" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={userActionLoading}
+                onClick={handleRemoveUser}
+                style={{ background: "#EF4444", borderColor: "#EF4444", padding: "6px 14px", fontSize: "13px" }}
+              >
+                {userActionLoading ? "Removing..." : "Remove & Block"}
+              </button>
+            </div>
           </div>
         </div>
       )}

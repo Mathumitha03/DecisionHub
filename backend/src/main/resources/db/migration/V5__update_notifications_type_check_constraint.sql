@@ -17,5 +17,7 @@ ALTER TABLE notifications
                         'FEEDBACK_REMINDER',
                         'MEMBERSHIP_APPROVED',
                         'MEMBERSHIP_REJECTED',
-                        'MEMBER_PROMOTED'
+                        'MEMBER_PROMOTED',
+                        'REPORT',
+                        'SYSTEM'
             ));

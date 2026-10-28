@@ -152,4 +152,28 @@ class NotificationControllerTest {
 
         verify(notificationService, times(1)).clearAllNotifications();
     }
+
+    @Test
+    void broadcastNotification_success() throws Exception {
+        doNothing().when(notificationService).broadcastNotification(anyString(), anyString(), anyString());
+
+        String json = """
+                {
+                    "title": "System Announcement",
+                    "message": "Platform will undergo maintenance",
+                    "actionUrl": "/maintenance"
+                }
+                """;
+
+        mockMvc.perform(post("/api/notifications/broadcast")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk());
+
+        verify(notificationService, times(1)).broadcastNotification(
+                eq("System Announcement"),
+                eq("Platform will undergo maintenance"),
+                eq("/maintenance")
+        );
+    }
 }

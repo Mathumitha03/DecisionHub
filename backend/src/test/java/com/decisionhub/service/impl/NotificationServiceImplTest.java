@@ -218,4 +218,40 @@ class NotificationServiceImplTest {
 
         verify(notificationRepository, times(1)).deleteAllByRecipientId(1L);
     }
+
+    @Test
+    void broadcastNotification_success() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+
+        User admin = new User();
+        admin.setId(1L);
+        admin.setRole(com.decisionhub.enums.authentication.PlatformRole.ADMIN);
+
+        User user1 = new User();
+        user1.setId(2L);
+        user1.setStatus(com.decisionhub.enums.authentication.UserStatus.ACTIVE);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user1));
+        when(userRepository.findAll()).thenReturn(List.of(user1));
+
+        notificationService.broadcastNotification("Announcement", "Platform maintenance scheduled", "/info");
+
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+    }
+
+    @Test
+    void broadcastNotification_nonAdmin_throwsUnauthorized() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+
+        User user = new User();
+        user.setId(1L);
+        user.setRole(com.decisionhub.enums.authentication.PlatformRole.USER);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThrows(UnauthorizedActionException.class, () ->
+                notificationService.broadcastNotification("Announcement", "Test", null));
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
 }

@@ -22,7 +22,7 @@ public class AuthenticationFacade {
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
             return Optional.empty();
         }
-        return userRepository.findByEmail(authentication.getName())
+        return userRepository.findByEmailIgnoreCase(authentication.getName())
                 .map(User::getId);
     }
 
@@ -31,6 +31,6 @@ public class AuthenticationFacade {
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
             return Optional.empty();
         }
-        return userRepository.findByEmail(authentication.getName());
+        return userRepository.findByEmailIgnoreCase(authentication.getName());
     }
 }

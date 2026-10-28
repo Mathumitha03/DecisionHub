@@ -22,13 +22,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
-    
+    private com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
+
     public JwtAuthenticationFilter(
             JwtService jwtService,
             CustomUserDetailsService userDetailsService) {
-
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setBlockedEmailService(com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService) {
+        this.blockedEmailService = blockedEmailService;
     }
 
     @Override
@@ -49,24 +54,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String jwt = authHeader.substring(7);
             String userEmail = jwtService.extractUsername(jwt);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (userEmail != null) {
+                if (blockedEmailService != null && blockedEmailService.isBlocked(userEmail)) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":403,\"error\":\"This email address has been permanently blocked from the platform\",\"path\":\"" + request.getRequestURI() + "\"}");
+                    return;
+                }
 
-                UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
+                if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    if (jwtService.isTokenValid(jwt, userDetails)) {
 
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
+                        UsernamePasswordAuthenticationToken authToken =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
 
-                    authToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
+                        authToken.setDetails(
+                                new WebAuthenticationDetailsSource().buildDetails(request)
+                        );
 
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
             }
         } catch (Exception e) {

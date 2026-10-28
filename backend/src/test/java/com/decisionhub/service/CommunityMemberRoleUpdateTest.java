@@ -39,11 +39,17 @@ class CommunityMemberRoleUpdateTest {
     @Mock
     private CommunityMemberRepository communityMemberRepository;
     @Mock
+    private com.decisionhub.repository.community.CategoryRepository categoryRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private Authentication authentication;
     @Mock
     private SecurityContext securityContext;
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+    @Mock
+    private com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
 
     @InjectMocks
     private CommunityServiceImpl communityService;

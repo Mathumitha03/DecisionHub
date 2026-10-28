@@ -57,20 +57,37 @@ public class CommentReportServiceImpl implements CommentReportService {
         log.info("Comment report created with ID: {} for comment ID: {}", savedReport.getId(), commentId);
 
         try {
+            java.util.Set<Long> recipientIds = new java.util.HashSet<>();
             java.util.List<User> admins = userRepository.findByRole(com.decisionhub.enums.authentication.PlatformRole.ADMIN);
             for (User admin : admins) {
+                recipientIds.add(admin.getId());
+            }
+
+            com.decisionhub.entity.community.Community comm = comment.getDecision().getCommunity();
+            if (comm != null) {
+                if (comm.getOwner() != null) {
+                    recipientIds.add(comm.getOwner().getId());
+                }
+                communityMemberRepository.findByCommunityAndStatus(comm, com.decisionhub.enums.community.MembershipStatus.APPROVED)
+                        .stream()
+                        .filter(m -> m.getRole() == com.decisionhub.enums.community.CommunityMemberRole.MODERATOR)
+                        .forEach(m -> recipientIds.add(m.getUser().getId()));
+            }
+
+            String actionUrl = "/admin/decisions/" + comment.getDecision().getId() + "/discuss";
+            for (Long recipientId : recipientIds) {
                 notificationService.createNotification(
-                        admin.getId(),
+                        recipientId,
                         "New Comment Report",
                         "A comment has been reported and requires review: \"" + comment.getContent() + "\"",
                         com.decisionhub.enums.notification.NotificationType.REPORT,
                         com.decisionhub.enums.notification.ReferenceType.COMMENT,
                         comment.getId(),
-                        "/admin/decisions/" + comment.getDecision().getId() + "/discuss"
+                        actionUrl
                 );
             }
         } catch (Exception e) {
-            log.error("Failed to generate report notifications for admins", e);
+            log.error("Failed to generate report notifications for admins/moderators", e);
         }
 
         return new CommentReportResponse(

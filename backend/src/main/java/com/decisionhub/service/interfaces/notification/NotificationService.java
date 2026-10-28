@@ -24,4 +24,6 @@ public interface NotificationService {
     void deleteNotification(Long notificationId);
     
     void clearAllNotifications();
+
+    void broadcastNotification(String title, String message, String actionUrl);
 }

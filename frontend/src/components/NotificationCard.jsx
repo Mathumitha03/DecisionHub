@@ -4,7 +4,13 @@ import {
   FaArrowRight,
   FaCommentDots,
   FaUsers,
-  FaInfoCircle
+  FaInfoCircle,
+  FaExclamationTriangle,
+  FaLock,
+  FaUnlock,
+  FaThumbtack,
+  FaTrash,
+  FaBullhorn
 } from "react-icons/fa";
 import { useNotifications } from "../context/NotificationsContext";
 import "../styles/NotificationCard.css";
@@ -19,16 +25,27 @@ function NotificationCard() {
     switch (type) {
       case "COMMENT":
         return <FaCommentDots style={{ color: "var(--accent-purple)" }} />;
+      case "COMMENT_REMOVED":
+        return <FaTrash style={{ color: "var(--danger, #ef4444)" }} />;
       case "VOTE":
         return <FaBell style={{ color: "var(--accent-blue)" }} />;
       case "COMMUNITY":
         return <FaUsers style={{ color: "var(--success)" }} />;
       case "DECISION":
         return <FaBell style={{ color: "var(--accent-blue)" }} />;
+      case "DECISION_LOCKED":
+        return <FaLock style={{ color: "var(--warning, #eab308)" }} />;
+      case "DECISION_UNLOCKED":
+        return <FaUnlock style={{ color: "var(--accent-blue)" }} />;
+      case "DECISION_PINNED":
+      case "DECISION_UNPINNED":
+        return <FaThumbtack style={{ color: "var(--accent-purple)" }} />;
+      case "REPORT":
+        return <FaExclamationTriangle style={{ color: "var(--danger, #ef4444)" }} />;
       case "REMINDER":
         return <FaBell style={{ color: "var(--warning, #eab308)" }} />;
       case "SYSTEM":
-        return <FaInfoCircle style={{ color: "var(--text-muted)" }} />;
+        return <FaBullhorn style={{ color: "var(--accent-purple)" }} />;
       default:
         return <FaInfoCircle style={{ color: "var(--text-muted)" }} />;
     }

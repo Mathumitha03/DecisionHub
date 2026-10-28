@@ -129,4 +129,34 @@ public class NotificationServiceImpl implements NotificationService {
 
         notificationRepository.deleteAllByRecipientId(currentUserId);
     }
+
+    @Override
+    @Transactional
+    public void broadcastNotification(String title, String message, String actionUrl) {
+        Long currentUserId = authenticationFacade.getCurrentUserId()
+                .orElseThrow(() -> new UnauthorizedActionException("User must be authenticated to broadcast notifications"));
+
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + currentUserId));
+
+        if (currentUser.getRole() != com.decisionhub.enums.authentication.PlatformRole.ADMIN) {
+            throw new UnauthorizedActionException("Only administrators can broadcast notifications");
+        }
+
+        java.util.List<User> activeUsers = userRepository.findAll().stream()
+                .filter(u -> u.getStatus() == com.decisionhub.enums.authentication.UserStatus.ACTIVE && u.getDeletedAt() == null)
+                .toList();
+
+        for (User user : activeUsers) {
+            createNotification(
+                    user.getId(),
+                    title,
+                    message,
+                    NotificationType.SYSTEM,
+                    ReferenceType.SYSTEM,
+                    0L,
+                    actionUrl != null && !actionUrl.isBlank() ? actionUrl : "/notifications"
+            );
+        }
+    }
 }

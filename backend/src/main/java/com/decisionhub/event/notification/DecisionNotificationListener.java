@@ -14,11 +14,9 @@ import com.decisionhub.repository.decision.DecisionRepository;
 import com.decisionhub.service.interfaces.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 
@@ -32,8 +30,8 @@ public class DecisionNotificationListener {
     private final CommunityMemberRepository communityMemberRepository;
     private final DecisionRepository decisionRepository;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @EventListener
+    @Transactional
     public void handleDecisionPublished(DecisionPublishedEvent event) {
         log.info("Handling DecisionPublishedEvent for decision ID: {}", event.getDecisionId());
 
@@ -74,8 +72,9 @@ public class DecisionNotificationListener {
             }
         }
     }
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+
+    @EventListener
+    @Transactional
     public void handleDecisionClosed(com.decisionhub.event.voting.DecisionClosedEvent event) {
         log.info("Handling DecisionClosedEvent for decision ID: {}", event.getDecisionId());
 
@@ -92,7 +91,6 @@ public class DecisionNotificationListener {
         }
 
         List<CommunityMember> members = communityMemberRepository.findByCommunityAndStatus(community, MembershipStatus.APPROVED);
-        Long closerId = decision.getCreator().getId(); // adjust if closer should be tracked separately
 
         String title = "Poll Closed";
         String message = String.format("Voting has ended for the decision '%s'.", decision.getTitle());

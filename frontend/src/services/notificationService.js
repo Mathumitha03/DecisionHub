@@ -60,6 +60,11 @@ export const deleteAllNotifications = async () => {
   return api.delete("/notifications");
 };
 
+export const broadcastNotification = async (data) => {
+  const res = await api.post("/notifications/broadcast", data);
+  return res.data;
+};
+
 // Sriram compatibility exports
 export const markAsRead = async (id) => {
   const response = await api.put(`/notifications/${id}/read`);

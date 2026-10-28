@@ -166,11 +166,21 @@ public class SecurityConfig {
                                 "/api/admin/support/**"
                         ).hasRole("ADMIN")
 
-                        // USER or ADMIN
+                        // ADMIN only - remove user
                         .requestMatchers(
-                                "/api/user/**"
+                                HttpMethod.DELETE,
+                                "/api/user/**",
+                                "/api/users/**",
+                                "/api/admin/users/**"
+                        ).hasRole("ADMIN")
+
+                        // USER, MODERATOR, or ADMIN
+                        .requestMatchers(
+                                "/api/user/**",
+                                "/api/users/**"
                         ).hasAnyRole(
                                 "USER",
+                                "MODERATOR",
                                 "ADMIN"
                         )
 
@@ -182,6 +192,12 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/analytics/**"
                         ).authenticated()
+
+                        // NOTIFICATION BROADCAST - ADMIN ONLY
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/notifications/broadcast"
+                        ).hasRole("ADMIN")
 
                         // All other APIs require authentication
                         .anyRequest().authenticated()

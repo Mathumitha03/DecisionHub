@@ -45,12 +45,12 @@ export default function AdminCommunityWorkspace() {
     try {
       setActionLoading(true);
       await api.delete(`/communities/${communityId}`);
-      addToast("Community deleted successfully", "success");
+      addToast("Community deleted and owner email permanently blocked", "success");
       setShowDeleteModal(false);
       navigate("/communities");
     } catch (err) {
       console.error("Failed to delete community:", err);
-      addToast(err.response?.data?.message || "Failed to delete community", "error");
+      addToast(err.response?.data?.message || err.response?.data?.error || "Failed to delete community", "error");
     } finally {
       setActionLoading(false);
     }
@@ -305,8 +305,8 @@ export default function AdminCommunityWorkspace() {
         <div className="forgot-modal-overlay" style={{ display: "flex", justifyContent: "center", alignItems: "center", position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000 }}>
           <div className="create-comm-modal glass-panel animate-pop-in" style={{ padding: "2rem", width: "400px", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             <h2 style={{ fontSize: "1.35rem", fontWeight: "700" }}>Delete Community</h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
-              Are you sure you want to delete this community?
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete this community? The owner ({community?.ownerUsername || "owner"}) and their registered email (<strong>{ownerEmail}</strong>) will be permanently blocked from the platform.
             </p>
             <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
               <button

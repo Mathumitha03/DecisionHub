@@ -49,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
     private final CustomUserDetailsService customUserDetailsService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AuthenticationManager authenticationManager;
+    private final com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
 
     public AuthServiceImpl(
             UserRepository userRepository,
@@ -56,7 +57,8 @@ public class AuthServiceImpl implements AuthService {
             JwtService jwtService,
             CustomUserDetailsService customUserDetailsService,
             PasswordResetTokenRepository passwordResetTokenRepository,
-            AuthenticationManager authenticationManager
+            AuthenticationManager authenticationManager,
+            com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -64,6 +66,7 @@ public class AuthServiceImpl implements AuthService {
         this.customUserDetailsService = customUserDetailsService;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.authenticationManager = authenticationManager;
+        this.blockedEmailService = blockedEmailService;
     }
 
     // SHA-256 Hashing method for reset tokens
@@ -86,7 +89,9 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public RegisterResponse register(RegisterRequest request) {
 
-        if (userRepository.existsByEmail(request.email())) {
+        blockedEmailService.validateNotBlocked(request.email());
+
+        if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new ResourceAlreadyExistsException("Email already exists");
         }
 
@@ -96,7 +101,7 @@ public class AuthServiceImpl implements AuthService {
 
         User user = new User();
         user.setUsername(request.username());
-        user.setEmail(request.email());
+        user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(PlatformRole.USER);
         user.setStatus(UserStatus.ACTIVE);
@@ -108,6 +113,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
+
+        blockedEmailService.validateNotBlocked(request.email());
         
         // 1. Authenticate user (this internally hits loadUserByUsername)
         Authentication authentication = authenticationManager.authenticate(
@@ -118,7 +125,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         // 2. Fetch our custom User entity strictly to get the ID for our JWT extra claims
-        User user = userRepository.findByEmail(request.email())
+        User user = userRepository.findByEmailIgnoreCase(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Validate requested role against user's actual role in the system
@@ -182,7 +189,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
 
-        Optional<User> userOpt = userRepository.findByEmail(request.email());
+        blockedEmailService.validateNotBlocked(request.email());
+
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(request.email());
 
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -222,6 +231,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = passwordResetToken.getUser();
+        blockedEmailService.validateNotBlocked(user.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         
         userRepository.save(user);

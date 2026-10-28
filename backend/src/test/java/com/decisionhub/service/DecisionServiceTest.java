@@ -11,6 +11,7 @@ import com.decisionhub.enums.decision.DecisionVisibility;
 import com.decisionhub.exception.BadRequestException;
 import com.decisionhub.exception.ResourceNotFoundException;
 import com.decisionhub.exception.UnauthorizedActionException;
+import com.decisionhub.exception.DecisionRateLimitException;
 import com.decisionhub.mapper.decision.DecisionMapper;
 import com.decisionhub.repository.authentication.UserRepository;
 import com.decisionhub.repository.community.CommunityRepository;
@@ -377,5 +378,110 @@ class DecisionServiceTest {
         verify(pollRepository).save(associatedPoll);
         verify(eventPublisher).publishEvent(any(com.decisionhub.event.PollClosedEvent.class));
         verify(eventPublisher).publishEvent(any(com.decisionhub.event.voting.DecisionClosedEvent.class));
+    }
+
+    @Test
+    void createDecision_whenUnderRateLimit_succeeds() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(decisionRepository.findDecisionCreationTimesSince(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(List.of(LocalDateTime.now().minusHours(2), LocalDateTime.now().minusHours(1)));
+        when(decisionMapper.toEntity(any(DecisionRequest.class))).thenReturn(decision);
+        when(decisionRepository.save(any(Decision.class))).thenReturn(decision);
+        when(decisionMapper.toResponse(any(Decision.class))).thenReturn(response);
+
+        DecisionResponse result = decisionService.createDecision(request, "127.0.0.1", "Mozilla");
+
+        assertNotNull(result);
+        verify(decisionRepository).save(any(Decision.class));
+    }
+
+    @Test
+    void createDecision_whenUserReachesLimitOf5_throwsDecisionRateLimitException() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        LocalDateTime oldest = LocalDateTime.now().minusHours(2);
+        List<LocalDateTime> fiveDecisions = List.of(
+                oldest,
+                LocalDateTime.now().minusHours(1).minusMinutes(40),
+                LocalDateTime.now().minusHours(1).minusMinutes(20),
+                LocalDateTime.now().minusHours(1),
+                LocalDateTime.now().minusMinutes(10)
+        );
+        when(decisionRepository.findDecisionCreationTimesSince(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(fiveDecisions);
+
+        DecisionRateLimitException ex = assertThrows(DecisionRateLimitException.class,
+                () -> decisionService.createDecision(request, "127.0.0.1", "Mozilla"));
+
+        assertTrue(ex.getMessage().contains("Decision creation limit reached"));
+        assertTrue(ex.getRetryAfterSeconds() > 0);
+        assertNotNull(ex.getRemainingTimeFormatted());
+        verify(decisionRepository, never()).save(any(Decision.class));
+    }
+
+    @Test
+    void createDecision_whenRecentDecisionsJustCreated_formats12HoursMessage() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        LocalDateTime justNow = LocalDateTime.now();
+        List<LocalDateTime> fiveDecisions = List.of(
+                justNow, justNow, justNow, justNow, justNow
+        );
+        when(decisionRepository.findDecisionCreationTimesSince(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(fiveDecisions);
+
+        DecisionRateLimitException ex = assertThrows(DecisionRateLimitException.class,
+                () -> decisionService.createDecision(request, "127.0.0.1", "Mozilla"));
+
+        assertEquals("Decision creation limit reached. Please try again after 12 hours.", ex.getMessage());
+        assertEquals("12 hours", ex.getRemainingTimeFormatted());
+        verify(decisionRepository, never()).save(any(Decision.class));
+    }
+
+    @Test
+    void createDecision_whenOldestDecisionExpires_allowsCreationAgain() {
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(1L));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        // Only 4 decisions within the 12-hour window because the 5th was > 12 hours ago
+        List<LocalDateTime> fourDecisionsInWindow = List.of(
+                LocalDateTime.now().minusHours(10),
+                LocalDateTime.now().minusHours(8),
+                LocalDateTime.now().minusHours(5),
+                LocalDateTime.now().minusHours(1)
+        );
+        when(decisionRepository.findDecisionCreationTimesSince(eq(1L), any(LocalDateTime.class)))
+                .thenReturn(fourDecisionsInWindow);
+        when(decisionMapper.toEntity(any(DecisionRequest.class))).thenReturn(decision);
+        when(decisionRepository.save(any(Decision.class))).thenReturn(decision);
+        when(decisionMapper.toResponse(any(Decision.class))).thenReturn(response);
+
+        DecisionResponse result = decisionService.createDecision(request, "127.0.0.1", "Mozilla");
+
+        assertNotNull(result);
+        verify(decisionRepository).save(any(Decision.class));
+    }
+
+    @Test
+    void createDecision_differentUsersHaveIndependentLimits() {
+        User user2 = new User();
+        user2.setId(2L);
+        user2.setUsername("user2");
+
+        when(authenticationFacade.getCurrentUserId()).thenReturn(Optional.of(2L));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user2));
+        when(decisionRepository.findDecisionCreationTimesSince(eq(2L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(decisionMapper.toEntity(any(DecisionRequest.class))).thenReturn(decision);
+        when(decisionRepository.save(any(Decision.class))).thenReturn(decision);
+        when(decisionMapper.toResponse(any(Decision.class))).thenReturn(response);
+
+        DecisionResponse result = decisionService.createDecision(request, "127.0.0.1", "Mozilla");
+
+        assertNotNull(result);
+        verify(decisionRepository).save(any(Decision.class));
     }
 }

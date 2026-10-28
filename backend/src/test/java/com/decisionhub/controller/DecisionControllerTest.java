@@ -34,7 +34,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
+@org.springframework.context.annotation.Import(com.decisionhub.exception.GlobalExceptionHandler.class)
 @WebMvcTest(
     controllers = DecisionController.class,
     excludeAutoConfiguration = {
@@ -103,6 +105,26 @@ class DecisionControllerTest {
             false,
             false
         );
+    }
+
+    @Test
+    void createDecision_whenRateLimitExceeded_returnsTooManyRequests() throws Exception {
+        when(decisionService.createDecision(any(DecisionRequest.class), anyString(), any()))
+                .thenThrow(new com.decisionhub.exception.DecisionRateLimitException(
+                        "Decision creation limit reached. Please try again after 12 hours.",
+                        43200L,
+                        "12 hours"
+                ));
+
+        mockMvc.perform(post("/api/decisions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "43200"))
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Decision creation limit reached. Please try again after 12 hours."))
+                .andExpect(jsonPath("$.remainingTime").value("12 hours"))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(43200));
     }
 
     @Test

@@ -844,4 +844,79 @@ class DecisionIntegrationTest {
 
         assertTrue(decisionRepository.findById(decision.getId()).isPresent());
     }
+
+    @Test
+    void testDecisionCreationRateLimit_EnforcedFivePerTwelveHours() throws Exception {
+        DecisionRequest decRequest = new DecisionRequest(
+                "Rate Limit Decision",
+                "Rate Limit Desc",
+                null,
+                true,
+                com.decisionhub.enums.decision.VotingType.RATING_BASED,
+                com.decisionhub.enums.decision.AnonymityType.PUBLIC,
+                LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(2),
+                Collections.emptySet(),
+                List.of(
+                        new OptionCreateDto("Opt 1", "Desc 1", Collections.emptyList()),
+                        new OptionCreateDto("Opt 2", "Desc 2", Collections.emptyList())
+                ),
+                Collections.emptyList()
+        );
+
+        // 1 & 2: User creates up to 5 decisions within 12 hours - all allowed
+        for (int i = 1; i <= 5; i++) {
+            mockMvc.perform(
+                    post("/api/decisions")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + creatorToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(decRequest))
+            ).andExpect(status().isCreated());
+        }
+
+        // Verify database has exactly 5 decisions created by creator
+        assertEquals(5, decisionRepository.countByCreatorIdAndCreatedAtGreaterThanEqual(creatorId, LocalDateTime.now().minusHours(12)));
+
+        // 3: User attempts to create 6th decision within 12 hours - blocked with 429
+        mockMvc.perform(
+                post("/api/decisions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + creatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decRequest))
+        )
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Decision creation limit reached. Please try again after 12 hours."))
+                .andExpect(jsonPath("$.remainingTime").value("12 hours"));
+
+        // 6: Database still only has 5 decisions (6th request was rejected and not persisted)
+        assertEquals(5, decisionRepository.countByCreatorIdAndCreatedAtGreaterThanEqual(creatorId, LocalDateTime.now().minusHours(12)));
+
+        // 4: Another user creates a decision - limit is independent
+        mockMvc.perform(
+                post("/api/decisions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherUserToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decRequest))
+        ).andExpect(status().isCreated());
+
+        // 5: Expiration - if the oldest decision expires (>12h ago), user can create decisions again
+        List<Decision> creatorDecisions = decisionRepository.findAll().stream()
+                .filter(d -> d.getCreator().getId().equals(creatorId))
+                .sorted((a, b) -> a.getId().compareTo(b.getId()))
+                .toList();
+
+        // Shift oldest decision creation time back 13 hours
+        Decision oldest = creatorDecisions.get(0);
+        oldest.setCreatedAt(LocalDateTime.now().minusHours(13));
+        decisionRepository.saveAndFlush(oldest);
+
+        // Now creator has only 4 decisions in the last 12-hour window - allowed!
+        mockMvc.perform(
+                post("/api/decisions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + creatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(decRequest))
+        ).andExpect(status().isCreated());
+    }
 }

@@ -19,6 +19,8 @@ public class DatabaseMigrationHelper {
             log.info("Checking and dropping restrictive notification constraints if they exist...");
             jdbcTemplate.execute("ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check");
             jdbcTemplate.execute("ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_check");
+            jdbcTemplate.execute("ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_reference_type_check");
+            jdbcTemplate.execute("ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_reference_check");
             log.info("Notification constraint check complete!");
         } catch (Exception e) {
             log.warn("Database constraint modification note: {}", e.getMessage());

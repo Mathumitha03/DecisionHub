@@ -79,3 +79,23 @@ export const pinDecision = (decisionId) =>
 
 export const unpinDecision = (decisionId) =>
   api.put(`/moderation/decisions/${decisionId}/unpin`, {});
+
+
+// Community Reporting
+export const reportCommunity = async (communityId, reason) => {
+  const res = await api.post("/communities/reportCommunity", { communityId, reason });
+  return res.data;
+};
+
+export const getCommunityReports = async (communityId) => {
+  const res = await api.get(`/communities/${communityId}/reports`);
+  return res.data;
+};
+
+export const sendAdminReportNotification = async (communityId, reason) => {
+  const res = await api.post("/communities/sendAdminNotification", { communityId, reason });
+  return res.data;
+};
+
+
+

@@ -15,12 +15,16 @@ import com.decisionhub.dto.request.community.CreateCommunityRequest;
 import com.decisionhub.dto.request.community.UpdateCommunityRequest;
 import com.decisionhub.dto.response.community.CommunityJoinRequestResponse;
 import com.decisionhub.dto.response.community.CommunityMemberResponse;
+import com.decisionhub.dto.response.community.CommunityReportResponse;
 import com.decisionhub.dto.response.community.CommunityResponse;
 import com.decisionhub.dto.response.community.JoinCommunityResponse;
 import com.decisionhub.entity.authentication.User;
 import com.decisionhub.entity.community.Category;
 import com.decisionhub.entity.community.Community;
 import com.decisionhub.entity.community.CommunityMember;
+import com.decisionhub.entity.reports.CommunityReport;
+import com.decisionhub.enums.notification.NotificationType;
+import com.decisionhub.enums.notification.ReferenceType;
 import com.decisionhub.enums.community.CommunityMemberRole;
 import com.decisionhub.enums.community.CommunityVisibility;
 import com.decisionhub.enums.community.MembershipStatus;
@@ -29,6 +33,8 @@ import com.decisionhub.repository.authentication.UserRepository;
 import com.decisionhub.repository.community.CategoryRepository;
 import com.decisionhub.repository.community.CommunityMemberRepository;
 import com.decisionhub.repository.community.CommunityRepository;
+import com.decisionhub.repository.reports.CommunityReportRepository;
+import com.decisionhub.service.interfaces.notification.NotificationService;
 import com.decisionhub.service.interfaces.community.CommunityService;
 import com.decisionhub.enums.authentication.PlatformRole;
 import com.decisionhub.exception.ResourceNotFoundException;
@@ -50,6 +56,8 @@ public class CommunityServiceImpl implements CommunityService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
+    private final CommunityReportRepository communityReportRepository;
+    private final NotificationService notificationService;
 
     public CommunityServiceImpl(
             CommunityRepository communityRepository,
@@ -57,7 +65,7 @@ public class CommunityServiceImpl implements CommunityService {
             CategoryRepository categoryRepository,
             UserRepository userRepository,
             ApplicationEventPublisher eventPublisher) {
-        this(communityRepository, communityMemberRepository, categoryRepository, userRepository, eventPublisher, null);
+        this(communityRepository, communityMemberRepository, categoryRepository, userRepository, eventPublisher, null, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -67,7 +75,9 @@ public class CommunityServiceImpl implements CommunityService {
             CategoryRepository categoryRepository,
             UserRepository userRepository,
             ApplicationEventPublisher eventPublisher,
-            @org.springframework.beans.factory.annotation.Autowired(required = false) com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService) {
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) CommunityReportRepository communityReportRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) NotificationService notificationService) {
 
         this.communityRepository = communityRepository;
         this.communityMemberRepository = communityMemberRepository;
@@ -75,6 +85,8 @@ public class CommunityServiceImpl implements CommunityService {
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
         this.blockedEmailService = blockedEmailService;
+        this.communityReportRepository = communityReportRepository;
+        this.notificationService = notificationService;
     }
 
 
@@ -627,11 +639,145 @@ public class CommunityServiceImpl implements CommunityService {
         );
     }
 
+    @Override
+    public CommunityReportResponse reportCommunity(Long communityId, String reason) {
+        if (communityId == null) {
+            throw new BadRequestException("Community ID is required");
+        }
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new BadRequestException("Report reason cannot be empty");
+        }
+
+        Community community = communityRepository.findById(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found with ID: " + communityId));
+
+        if (community.getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Community not found with ID: " + communityId);
+        }
+
+        User currentUser = getCurrentUser();
+
+        // ensure a user can report a community if and only if the user is the member of that community
+        boolean isMember = communityMemberRepository.findByCommunityAndUser(community, currentUser)
+                .filter(member -> member.getStatus() == MembershipStatus.APPROVED)
+                .isPresent();
+
+        if (!isMember) {
+            throw new UnauthorizedActionException("You can only report communities of which you are an active member");
+        }
+
+        CommunityReport report = new CommunityReport();
+        report.setCommunity(community);
+        report.setReporter(currentUser);
+        report.setReason(reason.trim());
+        report.setCreatedAt(LocalDateTime.now());
+
+        CommunityReport savedReport = communityReportRepository != null
+                ? communityReportRepository.save(report)
+                : report;
+
+        // Send notification to admin: "Community-1 is reported by the user 'A' for the reason...."
+        sendAdminReportNotificationInternal(community, currentUser, reason.trim());
+
+        return new CommunityReportResponse(
+                savedReport.getId(),
+                community.getId(),
+                community.getName(),
+                currentUser.getId(),
+                currentUser.getUsername(),
+                savedReport.getReason(),
+                savedReport.getCreatedAt() != null ? savedReport.getCreatedAt() : LocalDateTime.now()
+        );
+    }
+
+    @Override
+    public void sendAdminReportNotification(Long communityId, String reason) {
+        if (communityId == null) {
+            throw new BadRequestException("Community ID is required");
+        }
+        Community community = communityRepository.findById(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found with ID: " + communityId));
+        if (community.getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Community not found with ID: " + communityId);
+        }
+        User currentUser = getCurrentUser();
+        sendAdminReportNotificationInternal(community, currentUser, reason != null ? reason.trim() : "");
+    }
+
+    private void sendAdminReportNotificationInternal(Community community, User reporter, String reason) {
+        if (notificationService == null) {
+            return;
+        }
+        try {
+            List<User> admins = userRepository.findByRole(PlatformRole.ADMIN);
+            String title = "Community Reported";
+            String message = String.format("%s is reported by the user '%s' for the reason: %s",
+                    community.getName(), reporter.getUsername(), reason);
+            String actionUrl = "/communities/" + community.getId();
+
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin.getId(),
+                        title,
+                        message,
+                        NotificationType.REPORT,
+                        ReferenceType.COMMUNITY,
+                        community.getId(),
+                        actionUrl
+                );
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(CommunityServiceImpl.class)
+                    .error("Failed to notify admins of community report", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CommunityReportResponse> getCommunityReports(Long communityId) {
+        if (communityReportRepository == null) {
+            return List.of();
+        }
+        return communityReportRepository.findByCommunityIdOrderByCreatedAtDesc(communityId)
+                .stream()
+                .map(r -> new CommunityReportResponse(
+                        r.getId(),
+                        r.getCommunity().getId(),
+                        r.getCommunity().getName(),
+                        r.getReporter().getId(),
+                        r.getReporter().getUsername(),
+                        r.getReason(),
+                        r.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CommunityReportResponse> getAllCommunityReports() {
+        if (communityReportRepository == null) {
+            return List.of();
+        }
+        return communityReportRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(r -> new CommunityReportResponse(
+                        r.getId(),
+                        r.getCommunity().getId(),
+                        r.getCommunity().getName(),
+                        r.getReporter().getId(),
+                        r.getReporter().getUsername(),
+                        r.getReason(),
+                        r.getCreatedAt()
+                ))
+                .toList();
+    }
+
     private User getCurrentUser() {
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
 
-        return userRepository.findByEmail(authentication.getName())
+        return userRepository.findByEmailIgnoreCase(authentication.getName())
+                .or(() -> userRepository.findByUsername(authentication.getName()))
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
     }

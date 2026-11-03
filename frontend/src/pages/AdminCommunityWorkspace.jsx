@@ -4,7 +4,7 @@ import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 import { useToast } from "../components/Toast";
 import api from "../services/api";
-import { FaTrash, FaArrowRight, FaUsers, FaShieldAlt } from "react-icons/fa";
+import { FaTrash, FaArrowRight, FaUsers, FaShieldAlt, FaExclamationTriangle, FaBell } from "react-icons/fa";
 
 export default function AdminCommunityWorkspace() {
   const { id: communityId } = useParams();
@@ -13,6 +13,7 @@ export default function AdminCommunityWorkspace() {
 
   const [community, setCommunity] = useState(null);
   const [members, setMembers] = useState([]);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -27,17 +28,34 @@ export default function AdminCommunityWorkspace() {
   const fetchCommunityData = async () => {
     try {
       setLoading(true);
-      const [commRes, membersRes] = await Promise.all([
+      const [commRes, membersRes, reportsRes] = await Promise.all([
         api.get(`/communities/${communityId}`),
-        api.get(`/communities/${communityId}/members`)
+        api.get(`/communities/${communityId}/members`),
+        api.get(`/communities/${communityId}/reports`).catch(() => ({ data: [] }))
       ]);
       setCommunity(commRes.data);
       setMembers(membersRes.data || []);
+      setReports(reportsRes.data || []);
     } catch (err) {
       console.error("Failed to fetch community workspace data:", err);
       addToast("Failed to load community workspace", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendAdminAlert = async () => {
+    try {
+      setActionLoading(true);
+      await api.post(`/communities/${communityId}/notifyAdmin`, {
+        reason: "Admin review initiated for reported community"
+      });
+      addToast("Notification sent to all admins regarding this community", "success");
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+      addToast(err.response?.data?.message || "Failed to notify admin", "error");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -143,10 +161,41 @@ export default function AdminCommunityWorkspace() {
                 </span>
                 <h1 style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   {community.name}
+                  {reports.length > 0 && (
+                    <span
+                      className="status-badge"
+                      style={{
+                        background: "rgba(239, 68, 68, 0.15)",
+                        color: "#F87171",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                        fontSize: "0.8rem",
+                        padding: "3px 8px"
+                      }}
+                    >
+                      <FaExclamationTriangle /> {reports.length} Reported
+                    </span>
+                  )}
                 </h1>
                 <p style={{ marginTop: "0.5rem" }}>{community.description || "No description available."}</p>
               </div>
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <button
+                  className="btn-secondary"
+                  onClick={handleSendAdminAlert}
+                  disabled={actionLoading}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                  title="Dispatch report notification to platform admins"
+                >
+                  <FaBell /> Notify Admins
+                </button>
                 <button
                   className="btn-danger"
                   onClick={() => setShowDeleteModal(true)}
@@ -194,6 +243,21 @@ export default function AdminCommunityWorkspace() {
                   </span>
                 </div>
                 <div className="details-item">
+                  <span className="details-label">Reported Issues</span>
+                  <span
+                    className="details-value"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      color: reports.length > 0 ? "#F87171" : "inherit",
+                      fontWeight: reports.length > 0 ? "700" : "inherit"
+                    }}
+                  >
+                    <FaExclamationTriangle /> {reports.length}
+                  </span>
+                </div>
+                <div className="details-item">
                   <span className="details-label">Slug</span>
                   <span className="details-value">/{community.slug}</span>
                 </div>
@@ -207,6 +271,79 @@ export default function AdminCommunityWorkspace() {
                 >
                   <FaShieldAlt /> View Decisions <FaArrowRight />
                 </button>
+              </div>
+            </div>
+
+            {/* Community Reports Section */}
+            <div style={{ marginTop: "3rem" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+                <h2 style={{ fontSize: "1.4rem", fontWeight: "700", color: "#F87171", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <FaExclamationTriangle /> Community Reports ({reports.length})
+                </h2>
+                {reports.length > 0 && (
+                  <span
+                    className="status-badge"
+                    style={{
+                      background: "rgba(239, 68, 68, 0.15)",
+                      color: "#F87171",
+                      border: "1px solid rgba(239, 68, 68, 0.3)"
+                    }}
+                  >
+                    Requires Attention
+                  </span>
+                )}
+              </div>
+
+              <div className="decision-table-wrapper glass-panel">
+                {reports.length === 0 ? (
+                  <p style={{ padding: "20px", color: "var(--text-secondary)" }}>
+                    No reports submitted for this community. Community is in good standing.
+                  </p>
+                ) : (
+                  <table className="decision-table-element">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", width: "22%" }}>Reported By</th>
+                        <th style={{ textAlign: "left", width: "48%" }}>Reason</th>
+                        <th style={{ textAlign: "left", width: "20%" }}>Date Reported</th>
+                        <th style={{ textAlign: "center", width: "10%" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reports.map((report) => (
+                        <tr key={report.id}>
+                          <td>
+                            <strong style={{ color: "var(--text-primary)" }}>
+                              @{report.reporterUsername}
+                            </strong>
+                          </td>
+                          <td>
+                            <span style={{ color: "var(--text-secondary)", lineHeight: "1.4", display: "block" }}>
+                              {report.reason}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>
+                              {report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <span
+                              className="status-badge"
+                              style={{
+                                background: "rgba(239, 68, 68, 0.15)",
+                                color: "#F87171",
+                                border: "1px solid rgba(239, 68, 68, 0.3)"
+                              }}
+                            >
+                              Reported
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
 

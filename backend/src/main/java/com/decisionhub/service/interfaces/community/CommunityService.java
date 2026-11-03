@@ -7,6 +7,7 @@ import com.decisionhub.dto.request.community.UpdateCommunityRequest;
 import com.decisionhub.dto.request.community.UpdateMemberRoleRequest;
 import com.decisionhub.dto.response.community.CommunityJoinRequestResponse;
 import com.decisionhub.dto.response.community.CommunityMemberResponse;
+import com.decisionhub.dto.response.community.CommunityReportResponse;
 import com.decisionhub.dto.response.community.CommunityResponse;
 import com.decisionhub.dto.response.community.JoinCommunityResponse;
 
@@ -47,4 +48,13 @@ public interface CommunityService {
     void removeMember(Long communityId, Long memberId);
 
     CommunityMemberResponse updateMemberRole(Long communityId, Long memberId, UpdateMemberRoleRequest request);
+
+    // Community Reporting & Admin Notification
+    CommunityReportResponse reportCommunity(Long communityId, String reason);
+
+    void sendAdminReportNotification(Long communityId, String reason);
+
+    List<CommunityReportResponse> getCommunityReports(Long communityId);
+
+    List<CommunityReportResponse> getAllCommunityReports();
 }

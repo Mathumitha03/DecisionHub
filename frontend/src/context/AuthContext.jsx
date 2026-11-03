@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import api from "../services/api";
+import api, { getAuthToken } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -8,14 +8,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("decisionhub-session");
+    // Read session isolated to this browser tab
+    const storedUser = sessionStorage.getItem("decisionhub-session");
 
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (err) {
         console.error("Failed to parse stored session:", err);
-        localStorage.removeItem("decisionhub-session");
+        sessionStorage.removeItem("decisionhub-session");
       }
     }
 
@@ -27,20 +28,17 @@ export const AuthProvider = ({ children }) => {
 
   const login = (token, userData) => {
     if (token) {
-      localStorage.setItem("token", token);
+      sessionStorage.setItem("token", token);
     }
     if (userData) {
-      localStorage.setItem("decisionhub-session", JSON.stringify(userData));
+      sessionStorage.setItem("decisionhub-session", JSON.stringify(userData));
       setUser(userData);
     }
   };
 
   const refreshProfile = async () => {
     try {
-      const t =
-        localStorage.getItem("token") ||
-        localStorage.getItem("authToken") ||
-        localStorage.getItem("jwt");
+      const t = getAuthToken();
 
       if (t) {
         const res = await api.get("/auth/profile", {
@@ -49,7 +47,7 @@ export const AuthProvider = ({ children }) => {
 
         if (res.status === 200) {
           const freshUser = res.data;
-          localStorage.setItem("decisionhub-session", JSON.stringify(freshUser));
+          sessionStorage.setItem("decisionhub-session", JSON.stringify(freshUser));
           setUser(freshUser);
           return freshUser;
         }
@@ -60,10 +58,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("jwt");
-    localStorage.removeItem("decisionhub-session");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("authToken");
+    sessionStorage.removeItem("jwt");
+    sessionStorage.removeItem("decisionhub-session");
+    sessionStorage.removeItem("dh_oauth_state");
     setUser(null);
   };
 
@@ -92,3 +91,5 @@ export const useAuth = () => {
 
   return context;
 };
+
+export default AuthContext;

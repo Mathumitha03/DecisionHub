@@ -22,9 +22,9 @@ import "../styles/DecisionList.css";
 
 
   const token = () =>
-  localStorage.getItem("token") ||
-  localStorage.getItem("authToken") ||
-  localStorage.getItem("jwt");
+  sessionStorage.getItem("token") ||
+  sessionStorage.getItem("authToken") ||
+  sessionStorage.getItem("jwt");
 function DecisionList() {
   const { addToast } = useToast();
   const { user } = useAuth();

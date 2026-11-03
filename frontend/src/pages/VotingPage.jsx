@@ -9,9 +9,9 @@ import "../styles/VotingPage.css";
 
 
   const token = () =>
-  localStorage.getItem("token") ||
-  localStorage.getItem("authToken") ||
-  localStorage.getItem("jwt");
+  sessionStorage.getItem("token") ||
+  sessionStorage.getItem("authToken") ||
+  sessionStorage.getItem("jwt");
 const VotingPage = () => {
   const { addToast } = useToast();
   const [polls, setPolls] = useState([]);

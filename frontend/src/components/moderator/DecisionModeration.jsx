@@ -13,6 +13,9 @@ import api from "../../services/api.js"
 
 
   const token = () =>
+  sessionStorage.getItem("token") ||
+  sessionStorage.getItem("authToken") ||
+  sessionStorage.getItem("jwt") ||
   localStorage.getItem("token") ||
   localStorage.getItem("authToken") ||
   localStorage.getItem("jwt");

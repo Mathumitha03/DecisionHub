@@ -27,7 +27,7 @@ function Analytics() {
   const [communitiesList, setCommunitiesList] = useState([]);
 
   useEffect(() => {
-    const t = localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("jwt");
+    const t = sessionStorage.getItem("token") || sessionStorage.getItem("authToken") || sessionStorage.getItem("jwt");
     if (!t) return;
     
     // Fetch decisions for user selection

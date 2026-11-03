@@ -115,6 +115,7 @@ public class SecurityConfig {
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/auth/oauth2/**",
+                                "/login/oauth2/code/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/error"
@@ -166,12 +167,20 @@ public class SecurityConfig {
                                 "/api/admin/support/**"
                         ).hasRole("ADMIN")
 
+                        // ADMIN only - all admin endpoints (blocked users, analytics, support, users)
+                        .requestMatchers(
+                                "/api/admin/users/**"
+                        ).hasRole("ADMIN")
+
+                        .requestMatchers(
+                                "/api/admin/**"
+                        ).hasRole("ADMIN")
+
                         // ADMIN only - remove user
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/user/**",
-                                "/api/users/**",
-                                "/api/admin/users/**"
+                                "/api/users/**"
                         ).hasRole("ADMIN")
 
                         // USER, MODERATOR, or ADMIN

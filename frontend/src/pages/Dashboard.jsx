@@ -16,9 +16,9 @@ import api from "../services/api";
 
 
   const token = () =>
-  localStorage.getItem("token") ||
-  localStorage.getItem("authToken") ||
-  localStorage.getItem("jwt");
+  sessionStorage.getItem("token") ||
+  sessionStorage.getItem("authToken") ||
+  sessionStorage.getItem("jwt");
 function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();

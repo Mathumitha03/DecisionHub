@@ -16,9 +16,9 @@ import "../styles/DecisionDetail.css";
 
 
 const token = () =>
-    localStorage.getItem("token") ||
-    localStorage.getItem("authToken") ||
-    localStorage.getItem("jwt");
+    sessionStorage.getItem("token") ||
+    sessionStorage.getItem("authToken") ||
+    sessionStorage.getItem("jwt");
 
 // Options store values in comparisonScores keyed by factorId, one entry per
 // voter (each entry also carries a userId). Showing a single raw entry would

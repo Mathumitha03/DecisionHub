@@ -1,5 +1,6 @@
 package com.decisionhub.repository.authentication;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,7 +29,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     
     long countByStatus(UserStatus status);
 
-    java.util.List<User> findByRole(com.decisionhub.enums.authentication.PlatformRole role);
+    List<User> findByRole(com.decisionhub.enums.authentication.PlatformRole role);
+
+    List<User> findByStatus(UserStatus status);
+
+    List<User> findByStatusIn(List<UserStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.id = :id")

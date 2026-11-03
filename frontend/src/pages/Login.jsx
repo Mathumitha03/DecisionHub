@@ -29,14 +29,27 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Restore remembered email on mount
+  // Restore remembered email on mount & check for blocked query param
   useEffect(() => {
     const savedEmail = localStorage.getItem("decisionhub_remember_email");
     if (savedEmail) {
       setEmail(savedEmail);
       setRememberMe(true);
     }
-  }, []);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("blocked") === "true") {
+      addToast("Your account has been blocked by an administrator.", "error");
+    }
+    const errorParam = params.get("error");
+    if (errorParam) {
+      if (errorParam === "google_not_configured") {
+        addToast("Google OAuth is not configured. Please set GOOGLE_CLIENT_ID in your configuration.", "warning");
+      } else {
+        addToast(`Authentication error: ${errorParam}`, "error");
+      }
+    }
+  }, [addToast]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -62,8 +75,8 @@ function Login() {
         throw new Error("No authentication token received from server");
       }
 
-      // Store JWT token
-      localStorage.setItem("token", token);
+      // Store JWT token isolated to current browser tab
+      sessionStorage.setItem("token", token);
 
       if (rememberMe) {
         localStorage.setItem("decisionhub_remember_email", email.trim());
@@ -95,11 +108,11 @@ function Login() {
         }
       }
 
-      // 3. Save session in AuthContext & localStorage
+      // 3. Save session in AuthContext & sessionStorage
       if (typeof login === "function") {
         login(token, user);
       } else if (typeof setUser === "function") {
-        localStorage.setItem("decisionhub-session", JSON.stringify(user));
+        sessionStorage.setItem("decisionhub-session", JSON.stringify(user));
         setUser(user);
       }
 
@@ -119,6 +132,21 @@ function Login() {
       addToast(errorMessage, "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    try {
+      const state = crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      sessionStorage.setItem("dh_oauth_state", state);
+
+      const baseUrl = api.defaults.baseURL || "http://localhost:8080/api";
+      window.location.href = `${baseUrl}/auth/oauth2/google?state=${encodeURIComponent(state)}`;
+    } catch (err) {
+      console.error("Failed to initiate Google OAuth:", err);
+      addToast("Failed to initiate Google login. Please try again.", "error");
     }
   };
 
@@ -161,8 +189,8 @@ function Login() {
       <div className="login-card glass-panel animate-fade-in">
         <div className="brand-header">
           <div className="brand-logo">DH</div>
-          <h1>DecisionHub</h1>
-          <p>Collaborative Polling & Decision Making Platform</p>
+          <h1>Welcome Back</h1>
+          <p>Login to your account to continue</p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
@@ -172,6 +200,7 @@ function Login() {
               type="button"
               className={`role-btn ${role === "USER" ? "active-user" : ""}`}
               onClick={() => setRole("USER")}
+              disabled={loading}
             >
               <FaUser /> User
             </button>
@@ -179,6 +208,7 @@ function Login() {
               type="button"
               className={`role-btn ${role === "ADMIN" ? "active-admin" : ""}`}
               onClick={() => setRole("ADMIN")}
+              disabled={loading}
             >
               <FaUserShield /> Admin
             </button>
@@ -253,11 +283,10 @@ function Login() {
         <button
           type="button"
           className="btn-secondary google-btn"
-          onClick={() =>
-            addToast("Google authentication is UI-only in mock mode.", "info")
-          }
+          onClick={handleGoogleLogin}
+          disabled={loading}
         >
-          <FaGoogle /> Google Login
+          <FaGoogle /> Continue with Google
         </button>
 
         <p className="auth-footer">

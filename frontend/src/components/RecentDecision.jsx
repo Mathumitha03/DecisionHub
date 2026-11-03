@@ -5,12 +5,11 @@ import api from "../services/api";
 import { FaArrowRight, FaVoteYea, FaThumbtack, FaLock } from "react-icons/fa";
 import "../styles/RecentDecision.css";
 
+const token = () =>
+  sessionStorage.getItem("token") ||
+  sessionStorage.getItem("authToken") ||
+  sessionStorage.getItem("jwt");
 
-
-  const token = () =>
-  localStorage.getItem("token") ||
-  localStorage.getItem("authToken") ||
-  localStorage.getItem("jwt");
 function RecentDecision() {
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +22,7 @@ function RecentDecision() {
   const fetchRecentDecisions = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/decisions")
+      const res = await api.get("/decisions");
       // Most recently created first, limit to 3
       const sorted = [...res.data].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)

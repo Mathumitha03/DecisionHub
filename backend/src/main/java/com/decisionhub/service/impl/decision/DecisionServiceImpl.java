@@ -45,6 +45,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.decisionhub.exception.DecisionRateLimitException;
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -53,6 +56,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class DecisionServiceImpl implements DecisionService {
+    private static final int MAX_DECISIONS_PER_WINDOW = 5;
+    private static final int RATE_LIMIT_WINDOW_HOURS = 12;
+    private final ConcurrentHashMap<Long, Object> userLocks = new ConcurrentHashMap<>();
+
     private final DecisionRepository decisionRepository;
     private final UserRepository userRepository;
     private final CommunityRepository communityRepository;
@@ -79,10 +86,17 @@ public class DecisionServiceImpl implements DecisionService {
         log.info("Attempting to create decision: {}", request.title());
 
         Long currentUserId = getCurrentUserIdOrThrow();
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + currentUserId));
+        Object userLock = userLocks.computeIfAbsent(currentUserId, k -> new Object());
 
-        // 1. Validate community integration
+        synchronized (userLock) {
+            User currentUser = userRepository.findByIdForUpdate(currentUserId)
+                    .or(() -> userRepository.findById(currentUserId))
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + currentUserId));
+
+            // Rate limit check: Maximum 5 decisions within a rolling 12-hour period per user
+            validateDecisionCreationRateLimit(currentUserId);
+
+            // 1. Validate community integration
         Community community = null;
         if (request.communityId() != null) {
             community = communityRepository.findById(request.communityId())
@@ -144,6 +158,56 @@ public class DecisionServiceImpl implements DecisionService {
 
         log.info("Decision '{}' created successfully with ID '{}'", savedDecision.getTitle(), savedDecision.getId());
         return enrichResponse(decisionMapper.toResponse(savedDecision), savedDecision);
+        }
+    }
+
+    private void validateDecisionCreationRateLimit(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoffTime = now.minusHours(RATE_LIMIT_WINDOW_HOURS);
+
+        List<LocalDateTime> recentCreationTimes = decisionRepository.findDecisionCreationTimesSince(userId, cutoffTime);
+
+        if (recentCreationTimes != null && recentCreationTimes.size() >= MAX_DECISIONS_PER_WINDOW) {
+            int slotDecisionIndex = recentCreationTimes.size() - MAX_DECISIONS_PER_WINDOW;
+            LocalDateTime oldestInWindow = recentCreationTimes.get(slotDecisionIndex);
+            LocalDateTime expiryTime = oldestInWindow.plusHours(RATE_LIMIT_WINDOW_HOURS);
+
+            Duration remainingDuration = Duration.between(now, expiryTime);
+            long retryAfterSeconds = Math.max(1, remainingDuration.getSeconds());
+            String remainingTimeFormatted = formatRemainingTime(remainingDuration);
+
+            String errorMessage = "Decision creation limit reached. Please try again after " + remainingTimeFormatted + ".";
+            log.warn("Rate limit exceeded for user ID '{}'. Decisions in last 12h: {}. Retry after {} ({} seconds)",
+                    userId, recentCreationTimes.size(), remainingTimeFormatted, retryAfterSeconds);
+
+            throw new DecisionRateLimitException(errorMessage, retryAfterSeconds, remainingTimeFormatted);
+        }
+    }
+
+    private String formatRemainingTime(Duration duration) {
+        long totalSeconds = Math.max(1, duration.getSeconds());
+        if (totalSeconds >= 12 * 3600 - 60) {
+            return "12 hours";
+        }
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            if (minutes > 0) {
+                return hours + (hours == 1 ? " hour and " : " hours and ") + minutes + (minutes == 1 ? " minute" : " minutes");
+            } else {
+                return hours + (hours == 1 ? " hour" : " hours");
+            }
+        } else if (minutes > 0) {
+            if (seconds > 0) {
+                return minutes + (minutes == 1 ? " minute and " : " minutes and ") + seconds + (seconds == 1 ? " second" : " seconds");
+            } else {
+                return minutes + (minutes == 1 ? " minute" : " minutes");
+            }
+        } else {
+            return seconds + (seconds == 1 ? " second" : " seconds");
+        }
     }
 
     @Override

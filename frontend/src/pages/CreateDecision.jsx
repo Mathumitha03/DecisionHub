@@ -18,6 +18,7 @@ function CreateDecision() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [rateLimitError, setRateLimitError] = useState(null);
 
   // Target Audience / Community — 2 options only, per current app design
   const [visibility, setVisibility] = useState("PUBLIC"); // PUBLIC | PRIVATE
@@ -130,6 +131,7 @@ function CreateDecision() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setRateLimitError(null);
 
     if (options.some((opt) => !opt.title.trim())) {
       addToast("Please fill in all option titles.", "error");
@@ -206,7 +208,18 @@ function CreateDecision() {
     } catch (err) {
       console.error("Failed to create/publish decision:", err.response?.data || err.message);
       let errMsg = "Failed to create decision. Please try again.";
-      if (err.response?.data) {
+
+      if (err.response?.status === 429) {
+        const remaining = err.response?.data?.remainingTime;
+        if (remaining) {
+          errMsg = `Decision creation limit reached. Please try again after ${remaining}.`;
+        } else if (err.response?.data?.error) {
+          errMsg = err.response.data.error;
+        } else {
+          errMsg = "Decision creation limit reached. Please try again after 12 hours.";
+        }
+        setRateLimitError(errMsg);
+      } else if (err.response?.data) {
         if (typeof err.response.data === "object") {
           errMsg = err.response.data.error || err.response.data.message || errMsg;
         } else if (typeof err.response.data === "string") {
@@ -239,6 +252,43 @@ function CreateDecision() {
             </div>
 
             <form onSubmit={handleSubmit} className="create-form-panel glass-panel">
+              {rateLimitError && (
+                <div
+                  className="rate-limit-banner animate-fade-in"
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.12)",
+                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    color: "#ef4444",
+                    padding: "14px 18px",
+                    borderRadius: "10px",
+                    marginBottom: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    fontSize: "0.95rem",
+                    fontWeight: "500"
+                  }}
+                >
+                  <span>{rateLimitError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setRateLimitError(null)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#ef4444",
+                      cursor: "pointer",
+                      padding: "4px",
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                    title="Dismiss"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              )}
               {/* Decision Title */}
               <div className="form-group">
                 <label>Decision Title</label>

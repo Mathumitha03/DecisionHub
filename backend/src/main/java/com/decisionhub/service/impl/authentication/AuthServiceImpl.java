@@ -128,6 +128,10 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(request.email())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            throw new UnauthorizedActionException("Your account has been blocked by an administrator. Please contact support.");
+        }
+
         // Validate requested role against user's actual role in the system
         PlatformRole requestedRole;
         try {
@@ -173,7 +177,7 @@ public class AuthServiceImpl implements AuthService {
 
         String email = authentication.getName();
 
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return new ProfileResponse(
@@ -181,7 +185,8 @@ public class AuthServiceImpl implements AuthService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getRole(),
-                user.getStatus()
+                user.getStatus(),
+                user.getAvatarUrl()
         );
     }
 

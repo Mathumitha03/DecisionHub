@@ -9,4 +9,6 @@ public interface BlockedEmailService {
     boolean isBlocked(String email);
 
     void validateNotBlocked(String email);
+
+    void unblockEmail(String email);
 }

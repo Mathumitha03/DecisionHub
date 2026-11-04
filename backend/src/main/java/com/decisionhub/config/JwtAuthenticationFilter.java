@@ -1,6 +1,7 @@
 package com.decisionhub.config;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -10,6 +11,9 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.decisionhub.entity.authentication.User;
+import com.decisionhub.enums.authentication.UserStatus;
+import com.decisionhub.repository.authentication.UserRepository;
 import com.decisionhub.service.impl.authentication.CustomUserDetailsService;
 
 import jakarta.servlet.FilterChain;
@@ -22,6 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private UserRepository userRepository;
     private com.decisionhub.service.interfaces.authentication.BlockedEmailService blockedEmailService;
 
     public JwtAuthenticationFilter(
@@ -29,6 +34,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             CustomUserDetailsService userDetailsService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -62,10 +72,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                if (userRepository != null) {
+                    Optional<User> userOpt = userRepository.findByEmailIgnoreCase(userEmail);
+                    if (userOpt.isPresent() && userOpt.get().getStatus() == UserStatus.BLOCKED) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"status\":403,\"error\":\"Your account has been blocked by an administrator\",\"path\":\"" + request.getRequestURI() + "\"}");
+                        return;
+                    }
+                }
+
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
-                    if (jwtService.isTokenValid(jwt, userDetails)) {
+                    if (jwtService.isTokenValid(jwt, userDetails) && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
 
                         UsernamePasswordAuthenticationToken authToken =
                                 new UsernamePasswordAuthenticationToken(

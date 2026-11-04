@@ -50,4 +50,13 @@ public class BlockedEmailServiceImpl implements BlockedEmailService {
             throw new BlockedEmailException("This email address has been permanently blocked from the platform");
         }
     }
+
+    @Override
+    @Transactional
+    public void unblockEmail(String email) {
+        if (email != null && !email.trim().isEmpty()) {
+            blockedEmailRepository.findByEmailIgnoreCase(email.trim().toLowerCase())
+                    .ifPresent(blockedEmailRepository::delete);
+        }
+    }
 }

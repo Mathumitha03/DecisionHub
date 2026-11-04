@@ -396,7 +396,7 @@ export function AdminAnalyticsView() {
                         {u.status}
                       </td>
                       <td style={{ padding: "12px 5px", textAlign: "right" }}>
-                        {u.role !== "ADMIN" && u.status !== "SUSPENDED" && (
+                        {u.role !== "ADMIN" && u.status !== "SUSPENDED" && u.status !== "BLOCKED" && (
                           <button
                             type="button"
                             onClick={() => setUserToRemove(u)}
@@ -415,7 +415,7 @@ export function AdminAnalyticsView() {
                             Remove
                           </button>
                         )}
-                        {u.status === "SUSPENDED" && (
+                        {(u.status === "SUSPENDED" || u.status === "BLOCKED") && (
                           <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "bold" }}>
                             Blocked
                           </span>

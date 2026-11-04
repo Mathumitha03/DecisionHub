@@ -8,7 +8,8 @@ import {
   FaSignOutAlt,
   FaUserShield,
   FaCommentDots,
-  FaGavel
+  FaGavel,
+  FaUserSlash,
 } from "react-icons/fa";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -24,25 +25,6 @@ function Sidebar() {
   const isActive = (path) => {
     return location.pathname === path ? "active-link" : "";
   };
-  // useEffect(() => {
-  //   if (user && user.role === "MODERATOR") {
-  //     api.get("/communities/moderating")
-  //         .then(res => {
-  //           if (res.data && res.data.length > 0) {
-  //             setIsModerator(true);
-  //           } else {
-  //             setIsModerator(false);
-  //           }
-  //         })
-  //         .catch(err => {
-  //           console.error("Failed to fetch moderating communities:", err);
-  //           setIsModerator(false);
-  //         });
-  //
-  //   } else {
-  //     setIsModerator(false);
-  //   }
-  // }, [user]);
 
   return (
     <div className="sidebar glass-panel">
@@ -98,6 +80,14 @@ function Sidebar() {
             </li>
           )}
 
+          {isAdmin && (
+            <li className={isActive("/admin/blocked-users")}>
+              <Link to="/admin/blocked-users">
+                <FaUserSlash /> <span>Blocked Users</span>
+              </Link>
+            </li>
+          )}
+
           <li className={isActive("/analytics")}>
             <Link to="/analytics">
               <FaChartBar /> <span>Analytics Panel</span>
@@ -126,8 +116,8 @@ function Sidebar() {
 
       {user && (
         <div className="user-profile-footer">
-          {user.photo ? (
-            <img src={user.photo} alt={user.username} className="footer-avatar" />
+          {user.photo || user.avatarUrl ? (
+            <img src={user.photo || user.avatarUrl} alt={user.username} className="footer-avatar" />
           ) : (
             <div className="footer-avatar" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-tertiary)" }}>
               <FaUser style={{ fontSize: "14px", color: "var(--accent-purple)" }} />
@@ -137,17 +127,17 @@ function Sidebar() {
             <span className="footer-username">{user.username}</span>
             <div className="footer-role-badge">
               {isAdmin ? (
-                  <span className="badge-role badge-admin">
-    <FaUserShield /> Admin
-  </span>
+                <span className="badge-role badge-admin">
+                  <FaUserShield /> Admin
+                </span>
               ) : isModerator ? (
-                  <span className="badge-role badge-admin">
-    <FaUserShield /> Moderator
-  </span>
+                <span className="badge-role badge-admin">
+                  <FaUserShield /> Moderator
+                </span>
               ) : (
-                  <span className="badge-role badge-user">
-    <FaUser /> User
-  </span>
+                <span className="badge-role badge-user">
+                  <FaUser /> User
+                </span>
               )}
             </div>
           </div>

@@ -4,7 +4,6 @@ import com.decisionhub.entity.authentication.User;
 import com.decisionhub.enums.authentication.UserStatus;
 import com.decisionhub.repository.authentication.UserRepository;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 
@@ -35,12 +34,18 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            throw new org.springframework.security.authentication.LockedException(
+                    "Your account has been blocked by an administrator");
+        }
+
         return org.springframework.security.core.userdetails.User
                 .builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
                 .roles(user.getRole().name())
                 .disabled(user.getStatus() != UserStatus.ACTIVE || user.getDeletedAt() != null)
+                .accountLocked(user.getStatus() == UserStatus.BLOCKED)
                 .build();
     }
 }

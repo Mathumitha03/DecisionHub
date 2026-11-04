@@ -25,7 +25,22 @@ public class JwtService {
     private long jwtExpiration;
     
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKey);
+            if (keyBytes.length < 32) {
+                keyBytes = secretKey.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (Exception ex) {
+            keyBytes = secretKey.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        if (keyBytes.length < 32) {
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                keyBytes = md.digest(keyBytes);
+            } catch (java.security.NoSuchAlgorithmException ignored) {
+            }
+        }
         return Keys.hmacShaKeyFor(keyBytes);
     }
 

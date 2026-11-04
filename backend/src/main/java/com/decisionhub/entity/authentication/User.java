@@ -58,6 +58,15 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
+
+    @Column(name = "blocked_by", length = 100)
+    private String blockedBy;
+
     // ===========================
     // Authentication
     // ===========================

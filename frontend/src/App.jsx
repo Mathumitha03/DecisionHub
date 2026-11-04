@@ -5,10 +5,10 @@ import { ToastProvider } from "./components/Toast";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import OAuth2Callback from "./pages/OAuth2Callback";
 import Dashboard from "./pages/Dashboard";
 import DecisionDetail from "./pages/DecisionDetail";
 import CreateDecision from "./pages/CreateDecision";
-// import VotingPage from "./pages/VotingPage"; // Voting Room removed per mentor review — voting now happens directly on each decision's own page
 import Communities from "./pages/Communities";
 import CommunityDetail from "./pages/CommunityDetails";
 import DecisionList from "./pages/DecisionList";
@@ -25,6 +25,7 @@ import FeedbackDashboard from "./pages/FeedbackDashboard";
 import AdminCommunityDecisions from "./pages/AdminCommunityDecisions";
 import AdminDecisionDiscussion from "./pages/AdminDecisionDiscussion";
 import AdminDecisions from "./pages/AdminDecisions";
+import BlockedUsers from "./pages/BlockedUsers";
 
 // ─── Protected Route (any logged-in user) ────────────────────────────────────
 function PrivateRoute({ children }) {
@@ -62,18 +63,13 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/oauth2/callback" element={<OAuth2Callback />} />
 
       {/* Private — any logged-in user */}
       <Route path="/dashboard"        element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/decisions"        element={<PrivateRoute><DecisionList /></PrivateRoute>} />
-<Route path="/create-decision" element={<PrivateRoute><CreateDecision /></PrivateRoute>} />
+      <Route path="/create-decision" element={<PrivateRoute><CreateDecision /></PrivateRoute>} />
       <Route path="/decisions/:id"    element={<PrivateRoute><DecisionDetail /></PrivateRoute>} />
-      {/* Voting Room removed per mentor review (2026-07-30) — a separate feed
-          page duplicated voting that already happens inline on each decision's
-          own page. Left commented (not deleted) so it can be restored in one
-          line if needed later; VotingPage.jsx itself is untouched.
-      <Route path="/vote" element={<PrivateRoute><VotingPage /></PrivateRoute>} />
-      */}
       <Route path="/decisions/:id/discuss"  element={<PrivateRoute><Discussion /></PrivateRoute>} />
       <Route path="/communities"      element={<PrivateRoute><Communities /></PrivateRoute>} />
       <Route path="/communities/:id"  element={<PrivateRoute><CommunityDetail /></PrivateRoute>} />
@@ -112,6 +108,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <AdminDecisionDiscussion />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/blocked-users"
+        element={
+          <AdminRoute>
+            <BlockedUsers />
           </AdminRoute>
         }
       />

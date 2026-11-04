@@ -8,5 +8,10 @@ public record ProfileResponse(
         String username,
         String email,
         PlatformRole role,
-        UserStatus status
-) {}
+        UserStatus status,
+        String avatarUrl
+) {
+    public ProfileResponse(Long id, String username, String email, PlatformRole role, UserStatus status) {
+        this(id, username, email, role, status, null);
+    }
+}

@@ -47,7 +47,7 @@ public class BlockedEmailServiceImpl implements BlockedEmailService {
     @Transactional(readOnly = true)
     public void validateNotBlocked(String email) {
         if (isBlocked(email)) {
-            throw new BlockedEmailException("This email address has been permanently blocked from the platform");
+            throw new BlockedEmailException("This email address has been blocked from the platform");
         }
     }
 
